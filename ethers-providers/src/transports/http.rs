@@ -70,7 +70,7 @@ impl JsonRpcClient for Provider {
     ) -> Result<R, ClientError> {
         let next_id = self.id.fetch_add(1, Ordering::SeqCst);
         let payload = Request::new(next_id, method, params);
-
+        println!("payload {}",serde_json::to_string(&payload).unwrap());
         let res = self.client.post(self.url.as_ref()).json(&payload).send().await?;
         let text = res.text().await?;
 
