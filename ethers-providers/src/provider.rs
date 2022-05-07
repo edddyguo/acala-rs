@@ -1,10 +1,4 @@
-use crate::{
-    ens, erc, maybe,
-    pubsub::{PubsubClient, SubscriptionStream},
-    stream::{FilterWatcher, DEFAULT_POLL_INTERVAL},
-    FromErr, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider,
-    PendingTransaction, QuorumProvider, RwClient, SyncingStatus,
-};
+use crate::{ens, erc, maybe, pubsub::{PubsubClient, SubscriptionStream}, stream::{FilterWatcher, DEFAULT_POLL_INTERVAL}, FromErr, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider, PendingTransaction, QuorumProvider, RwClient, SyncingStatus, EthResource};
 
 #[cfg(feature = "celo")]
 use crate::CeloMiddleware;
@@ -290,8 +284,18 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
         // fill gas price
         match tx {
             TypedTransaction::Eip2930(_) | TypedTransaction::Legacy(_) => {
-                let gas_price = maybe(tx.gas_price(), self.get_gas_price()).await?;
-                tx.set_gas_price(gas_price);
+                    #[cfg(feature = "acala")]
+                    {
+                        //let eth_resource = self.get_eth_gas_resource().await?;
+                        let price = U256::from(200000340969u64);
+                        tx.set_gas_price(price);
+
+                    }
+                #[cfg(not(feature = "acala"))]
+                    {
+                        let mut gas_price = maybe(tx.gas_price(), self.get_gas_price()).await?;
+                        tx.set_gas_price(gas_price);
+                    }
             }
             TypedTransaction::Eip1559(ref mut inner) => {
                 if inner.max_fee_per_gas.is_none() || inner.max_priority_fee_per_gas.is_none() {
@@ -330,8 +334,21 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
         // Set gas to estimated value only if it was not set by the caller,
         // even if the access list has been populated and saves gas
         if tx.gas().is_none() {
-            let gas_estimate = maybe(maybe_gas, self.estimate_gas(tx)).await?;
-            tx.set_gas(gas_estimate);
+            #[cfg(feature = "acala")]
+                {
+                    //todo: 目前代码没更新
+                    //let eth_resource = self.get_eth_gas_resource().await?;
+                    let gas_limit = U256::from(63032000u64);
+                    tx.set_gas(gas_limit);
+
+                }
+            #[cfg(not(feature = "acala"))]
+                {
+                    let gas_estimate = maybe(maybe_gas, self.estimate_gas(tx)).await?;
+                    println!("gas_estimate {:?}",gas_estimate);
+                    tx.set_gas(gas_estimate);
+                }
+
         }
 
         Ok(())
@@ -436,6 +453,11 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     /// Gets the current gas price as estimated by the node
     async fn get_gas_price(&self) -> Result<U256, ProviderError> {
         self.request("eth_gasPrice", ()).await
+    }
+
+    #[cfg(feature = "acala")]
+    async fn get_eth_gas_resource(&self) -> Result<EthResource, ProviderError> {
+        self.request("eth_getEthResource", ()).await
     }
 
     /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
@@ -562,8 +584,9 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     /// required (as a U256) to send it This is free, but only an estimate. Providing too little
     /// gas will result in a transaction being rejected (while still consuming all provided
     /// gas).
+
     async fn estimate_gas(&self, tx: &TypedTransaction) -> Result<U256, ProviderError> {
-        self.request("eth_estimateGas", [tx]).await
+            self.request("eth_estimateGas", [tx]).await
     }
 
     async fn create_access_list(

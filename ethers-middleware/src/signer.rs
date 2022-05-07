@@ -128,22 +128,6 @@ where
         // compare chain_id and use signer's chain_id if the tranasaction's chain_id is None,
         // return an error if they are not consistent
         let chain_id = self.signer.chain_id();
-       //先写死后边可以动态获取
-        let tx = match tx {
-            TypedTransaction::Legacy(x) => {
-                let mut tx2 = x.clone();
-                tx2.gas = Some(U256::from(63032000u64));
-                tx2.gas_price = Some(U256::from(200000340969u64));
-                TypedTransaction::Legacy(tx2)
-            }
-            TypedTransaction::Eip2930(x) => {
-                TypedTransaction::Eip2930(x)
-            }
-            TypedTransaction::Eip1559(x) => {
-                TypedTransaction::Eip1559(x)
-            }
-        };
-        println!("{:?}",tx);
         match tx.chain_id() {
             Some(id) if id.as_u64() != chain_id => {
                 return Err(SignerMiddlewareError::DifferentChainID)

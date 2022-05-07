@@ -30,7 +30,7 @@ pub mod erc;
 use async_trait::async_trait;
 use auto_impl::auto_impl;
 use ethers_core::types::transaction::{eip2718::TypedTransaction, eip2930::AccessListWithGasUsed};
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Serialize,Deserialize};
 use std::{error::Error, fmt::Debug, future::Future, pin::Pin};
 use url::Url;
 
@@ -91,6 +91,16 @@ pub enum SyncingStatus {
     /// When client is still syncing past blocks we get IsSyncing information.
     IsSyncing { starting_block: U256, current_block: U256, highest_block: U256 },
 }
+
+#[cfg(feature = "acala")]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EthResource {
+    #[serde(rename = "gasPrice")]
+    gas_price: U256,
+    #[serde(rename = "gasLimit")]
+    gas_limit: U256,
+}
+
 
 /// A middleware allows customizing requests send and received from an ethereum node.
 ///
@@ -371,6 +381,11 @@ pub trait Middleware: Sync + Send + Debug {
 
     async fn get_gas_price(&self) -> Result<U256, Self::Error> {
         self.inner().get_gas_price().await.map_err(FromErr::from)
+    }
+
+
+    async fn get_eth_gas_resource(&self) -> Result<EthResource, Self::Error> {
+        self.inner().get_eth_gas_resource().await.map_err(FromErr::from)
     }
 
     async fn estimate_eip1559_fees(
