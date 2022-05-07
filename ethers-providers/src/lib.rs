@@ -101,6 +101,14 @@ pub struct EthResource {
     gas_limit: U256,
 }
 
+#[cfg(feature = "acala")]
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EthResourceRequest {
+    data: Option<Bytes>,
+    from: Option<Address>,
+    to:  Option<NameOrAddress>,
+}
+
 
 /// A middleware allows customizing requests send and received from an ethereum node.
 ///
@@ -384,8 +392,8 @@ pub trait Middleware: Sync + Send + Debug {
     }
 
 
-    async fn get_eth_gas_resource(&self) -> Result<EthResource, Self::Error> {
-        self.inner().get_eth_gas_resource().await.map_err(FromErr::from)
+    async fn get_eth_gas_resources(&self,params: EthResourceRequest) -> Result<EthResource, Self::Error> {
+        self.inner().get_eth_gas_resources(params).await.map_err(FromErr::from)
     }
 
     async fn estimate_eip1559_fees(

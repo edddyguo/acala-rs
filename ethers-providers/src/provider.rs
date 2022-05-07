@@ -1,4 +1,4 @@
-use crate::{ens, erc, maybe, pubsub::{PubsubClient, SubscriptionStream}, stream::{FilterWatcher, DEFAULT_POLL_INTERVAL}, FromErr, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider, PendingTransaction, QuorumProvider, RwClient, SyncingStatus, EthResource};
+use crate::{ens, erc, maybe, pubsub::{PubsubClient, SubscriptionStream}, stream::{FilterWatcher, DEFAULT_POLL_INTERVAL}, FromErr, Http as HttpProvider, JsonRpcClient, JsonRpcClientWrapper, MockProvider, PendingTransaction, QuorumProvider, RwClient, SyncingStatus, EthResource, EthResourceRequest};
 
 #[cfg(feature = "celo")]
 use crate::CeloMiddleware;
@@ -23,6 +23,7 @@ use url::{ParseError, Url};
 
 use futures_util::{lock::Mutex, try_join};
 use std::{convert::TryFrom, fmt::Debug, str::FromStr, sync::Arc, time::Duration};
+use std::ops::Deref;
 use tracing::trace;
 use tracing_futures::Instrument;
 
@@ -286,9 +287,14 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
             TypedTransaction::Eip2930(_) | TypedTransaction::Legacy(_) => {
                     #[cfg(feature = "acala")]
                     {
-                        //let eth_resource = self.get_eth_gas_resource().await?;
-                        let price = U256::from(200000340969u64);
-                        tx.set_gas_price(price);
+                        let get_resource_param = EthResourceRequest {
+                            data:tx.data().cloned(),
+                            from: tx.from().cloned(),
+                            to:  tx.to().cloned(),
+                        };
+                        let eth_resource = self.get_eth_gas_resources(get_resource_param).await?;
+                        //let price = U256::from(200000340969u64);
+                        tx.set_gas_price(eth_resource.gas_price);
 
                     }
                 #[cfg(not(feature = "acala"))]
@@ -336,10 +342,13 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
         if tx.gas().is_none() {
             #[cfg(feature = "acala")]
                 {
-                    //todo: 目前代码没更新
-                    //let eth_resource = self.get_eth_gas_resource().await?;
-                    let gas_limit = U256::from(63032000u64);
-                    tx.set_gas(gas_limit);
+                    let get_resource_param = EthResourceRequest {
+                        data: tx.data().cloned(),
+                        from: tx.from().cloned(),
+                        to:  tx.to().cloned(),
+                    };
+                    let eth_resource = self.get_eth_gas_resources(get_resource_param).await?;
+                    tx.set_gas(eth_resource.gas_limit);
 
                 }
             #[cfg(not(feature = "acala"))]
@@ -456,8 +465,8 @@ impl<P: JsonRpcClient> Middleware for Provider<P> {
     }
 
     #[cfg(feature = "acala")]
-    async fn get_eth_gas_resource(&self) -> Result<EthResource, ProviderError> {
-        self.request("eth_getEthResource", ()).await
+    async fn get_eth_gas_resources(&self,params: EthResourceRequest) -> Result<EthResource, ProviderError> {
+        self.request("eth_getEthResources", ([params])).await
     }
 
     /// Gets a heuristic recommendation of max fee per gas and max priority fee per gas for
