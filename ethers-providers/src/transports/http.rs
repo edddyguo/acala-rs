@@ -71,21 +71,35 @@ impl JsonRpcClient for Provider {
         let next_id = self.id.fetch_add(1, Ordering::SeqCst);
         let payload = Request::new(next_id, method, params);
         println!("payload {}",serde_json::to_string(&payload).unwrap());
-        let res = self.client.post(self.url.as_ref()).json(&payload).send().await?;
-        let text = res.text().await?;
-
-        let raw = match serde_json::from_str(&text) {
-            Ok(Response::Success { result, .. }) => result.to_owned(),
-            Ok(Response::Error { error, .. }) => return Err(error.into()),
-            Ok(_) => {
-                let err = ClientError::SerdeJson {
-                    err: serde::de::Error::custom("unexpected notification over HTTP transport"),
-                    text,
-                };
-                return Err(err)
-            }
-            Err(err) => return Err(ClientError::SerdeJson { err, text }),
-        };
+        let mut raw;
+        loop {
+            let res = self.client.post(self.url.as_ref()).json(&payload).send().await?;
+            let text = res.text().await?;
+            println!("Rpc respond {}",text);
+            raw = match serde_json::from_str(&text) {
+                Ok(Response::Success { result, .. }) => result.to_owned(),
+                Ok(Response::Error { error, .. }) => {
+                    if error.code == 6969 {
+                        println!("ws call failed {:?},try again",error);
+                        continue;
+                    }else{
+                        return Err(error.into())
+                    }
+                },
+                Ok(_) => {
+                    let err = ClientError::SerdeJson {
+                        err: serde::de::Error::custom("unexpected notification over HTTP transport"),
+                        text,
+                    };
+                    return Err(err)
+                }
+                Err(err) => {
+                    println!("Unknown error ws call failed {:?},try again",err);
+                    continue;
+                },
+            };
+            break;
+        }
 
         let res = serde_json::from_str(raw.get())
             .map_err(|err| ClientError::SerdeJson { err, text: raw.to_string() })?;
