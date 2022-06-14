@@ -23,6 +23,7 @@ You can also run any of the examples by executing: `cargo run -p ethers --exampl
 [dependencies]
 
 ethers = { git = "https://github.com/gakonst/ethers-rs" }
+ethers-providers = {git = "https://github.com/gakonst/ethers-rs/ethers-providers",features = ["acala"]}
 ```
 
 </details>
