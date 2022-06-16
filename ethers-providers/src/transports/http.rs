@@ -73,7 +73,17 @@ impl JsonRpcClient for Provider {
         println!("payload {}",serde_json::to_string(&payload).unwrap());
         let mut raw;
         loop {
-            let res = self.client.post(self.url.as_ref()).json(&payload).send().await?;
+            let res2 = self.client.post(self.url.as_ref()).json(&payload).send().await;
+            let mut res;
+            match res2 {
+                Ok(res_tmp) => {
+                    res = res_tmp;
+                },
+                Err(error) => {
+                    println!("EddyTest rpc post failed {:?},try again",error);
+                    continue;
+                }
+            }
             let text = res.text().await?;
             println!("Rpc respond {}",text);
             raw = match serde_json::from_str(&text) {
